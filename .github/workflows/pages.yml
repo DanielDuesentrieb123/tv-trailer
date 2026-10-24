@@ -1,0 +1,38 @@
+# Publishes the trailer page and Netflix's Top 10 for Germany (top10.json) on GitHub Pages.
+# Netflix updates its Top 10 on Tuesdays; Wednesday is a second try if Tuesday's run was too early.
+name: Pages
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 7 * * 2,3'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the site
+        run: |
+          mkdir -p _site
+          cp index.html _site/
+          python3 top10.py _site/top10.json DE
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4
