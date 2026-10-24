@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Free My TV trailer</title>
+<!--
+  The TV app's trailer player. Installed TV apps run from a local file, so YouTube gets no Referer from them and refuses
+  to play (error 153). Free My TV embeds this page instead (trailer_page in config.properties): from here YouTube sees
+  this page's address. It plays ?v=<YouTube id> and tells the app when the video ends or can't play.
+  Old TV browsers (Tizen 3, webOS 3) read this too: ES5, no CSS variables.
+-->
+<style>
+  html, body { margin: 0; width: 100%; height: 100%; background: #000; overflow: hidden; }
+  iframe { position: absolute; left: 0; top: 0; width: 100%; height: 100%; border: 0; }
+</style>
+</head>
+<body>
+<script>
+  (function () {
+    'use strict';
+    function param(name) {
+      var m = new RegExp('[?&]' + name + '=([^&]*)').exec(location.search);
+      return m ? decodeURIComponent(m[1]) : '';
+    }
+    function tell(message) {
+      if (window.parent !== window) window.parent.postMessage(JSON.stringify(message), '*');
+    }
+
+    var id = param('v'), hl = param('hl');
+    if (!/^[A-Za-z0-9_-]{11}$/.test(id)) { tell({fmtv: 'error', code: 'id'}); return; }   // a YouTube id, nothing else
+    if (!/^[a-z]{2}$/.test(hl)) hl = 'en';
+
+    var f = document.createElement('iframe');
+    f.src = 'https://www.youtube-nocookie.com/embed/' + id + '?autoplay=1&controls=0&rel=0&iv_load_policy=3'
+        + '&playsinline=1&enablejsapi=1&hl=' + hl + '&origin=' + encodeURIComponent(location.protocol + '//' + location.host);
+    f.setAttribute('allow', 'autoplay; encrypted-media');
+    f.setAttribute('frameborder', '0');
+    f.onload = function () {
+      try { f.contentWindow.postMessage('{"event":"listening","id":1}', '*'); } catch (e) {}   // so the player reports its end
+    };
+    document.body.appendChild(f);
+
+    // The player's state: 0 is the end.
+    window.addEventListener('message', function (e) {
+      if (!/youtube/.test(e.origin || '')) return;
+      var d;
+      try { d = typeof e.data === 'string' ? JSON.parse(e.data) : e.data; } catch (x) { return; }
+      if (!d) return;
+      if (d.event === 'onError') tell({fmtv: 'error', code: d.info});
+      else if ((d.event === 'onStateChange' && d.info === 0) || (d.event === 'infoDelivery' && d.info && d.info.playerState === 0)) {
+        tell({fmtv: 'ended'});
+      }
+    });
+  })();
+</script>
+</body>
+</html>
